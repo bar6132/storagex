@@ -1,0 +1,27 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+
+# --- Next.js / Frontend ---
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+*.local
+
+# --- Docker & Logs ---
+*.log
+docker-volumes/
+minio_data/
+
+# --- App Specific ---
+backend/tmp/
+*.mp4
+*.mov
+*.avi
