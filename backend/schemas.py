@@ -22,6 +22,7 @@ class VideoOut(BaseModel):
     s3_key: Optional[str] = None
     created_at: datetime
     owner_id: int
+    is_deleted: bool
 
     class Config:
         from_attributes = True

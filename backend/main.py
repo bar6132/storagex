@@ -23,39 +23,53 @@ def root():
     return {"message": "Welcome to StorageX API"}
 
 @app.on_event("startup")
-async def create_super_admin():
+async def seed_database():
     from database import SessionLocal
     from models import User
     from main_utils import get_password_hash 
     db = SessionLocal()
-    target_email = "<email>"
-    target_password = "<password>"
+
+    users_to_seed = [
+        {
+            "email": "",
+            "password": "",
+            "is_admin": True,
+            "label": "ADMIN"
+        },
+        {
+            "email": "",
+            "password": "",
+            "is_admin": False, 
+            "label": "REGULAR USER"
+        }
+    ]
 
     try:
-        user = db.query(User).filter(User.email == target_email).first()
-        
-        if not user:
-            print(f"[*] Admin user not found. Creating {target_email}...")
-            hashed_pwd = get_password_hash(target_password)
+        for user_data in users_to_seed:
+            user = db.query(User).filter(User.email == user_data["email"]).first()
             
-            new_admin = User(
-                email=target_email,
-                hashed_password=hashed_pwd,
-                is_admin=True 
-            )
-            db.add(new_admin)
-            db.commit()
-            print(f"[+] SUCCESS: Admin created. Login with {target_email} / {target_password}")
-            
-        else:
-            if not user.is_admin:
-                user.is_admin = True
+            if not user:
+                print(f"[*] {user_data['label']} not found. Creating {user_data['email']}...")
+                hashed_pwd = get_password_hash(user_data["password"])
+                
+                new_user = User(
+                    email=user_data["email"],
+                    hashed_password=hashed_pwd,
+                    is_admin=user_data["is_admin"]
+                )
+                db.add(new_user)
                 db.commit()
-                print(f"[+] UPDATED: Existing user {target_email} is now an Admin.")
+                print(f"[+] SUCCESS: {user_data['label']} created.")
+                
             else:
-                print(f"[=] Admin {target_email} already exists and is configured correctly.")
+                if user.is_admin != user_data["is_admin"]:
+                    user.is_admin = user_data["is_admin"]
+                    db.commit()
+                    print(f"[+] UPDATED: {user_data['email']} role changed to {user_data['label']}.")
+                else:
+                    print(f"[=] User {user_data['email']} already exists as {user_data['label']}.")
 
     except Exception as e:
-        print(f"[!] Error creating admin user: {e}")
+        print(f"[!] Error during database seeding: {e}")
     finally:
         db.close()

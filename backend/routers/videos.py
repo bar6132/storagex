@@ -35,31 +35,15 @@ async def list_videos(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(main_utils.get_current_user)
 ):
-    return db.query(models.VideoJob).filter(models.VideoJob.owner_id == current_user.id).all()
-
+    return db.query(models.VideoJob).filter(
+        models.VideoJob.owner_id == current_user.id,
+        models.VideoJob.is_deleted == False
+    ).all()
 @router.get("/status/{job_id}", response_model=schemas.VideoOut)
 async def get_job_status(job_id: str, db: Session = Depends(database.get_db)):
     job = db.query(models.VideoJob).filter(models.VideoJob.id == job_id).first()
     if not job: raise HTTPException(status_code=404, detail="Job not found")
     return job
-
-@router.delete("/{video_id}")
-async def delete_video(
-    video_id: str, 
-    db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(main_utils.get_current_user)
-):
-    video = db.query(models.VideoJob).filter(models.VideoJob.id == video_id).first()
-    if not video: raise HTTPException(status_code=404, detail="Video not found")
-    
-    is_admin = getattr(current_user, "is_admin", False) 
-    if not is_admin and video.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
-    db.delete(video)
-    db.commit()
-    return {"message": "Deleted"}
-
 
 @router.get("/admin/all", response_model=List[schemas.VideoOut])
 async def get_all_videos_admin(
@@ -72,3 +56,35 @@ async def get_all_videos_admin(
             detail="Admin access required"
         )
     return db.query(models.VideoJob).all()
+
+@router.delete("/{video_id}")
+async def delete_video(
+    video_id: str, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(main_utils.get_current_user)
+):
+    video = db.query(models.VideoJob).filter(models.VideoJob.id == video_id).first()
+    if not video: 
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    is_admin = getattr(current_user, "is_admin", False) 
+
+    if is_admin:
+        try:
+            from tasks import S3_CLIENT
+            raw_path = f"raw/user_{video.owner_id}/{video.id}-{video.filename}"
+            S3_CLIENT.delete_object(Bucket="raw-videos", Key=raw_path)
+            if video.s3_key:
+                S3_CLIENT.delete_object(Bucket="processed-videos", Key=video.s3_key)
+        except Exception as e:
+            print(f"S3 Purge failed: {e}")
+            
+        db.delete(video) 
+        return {"message": "Admin: Video purged permanently"}
+
+    if video.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    video.is_deleted = True 
+    db.commit()
+    return {"message": "Video moved to trash"}

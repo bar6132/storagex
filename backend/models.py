@@ -27,5 +27,6 @@ class VideoJob(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
     s3_key = Column(String, nullable=True)
+    is_deleted = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="videos")
