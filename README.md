@@ -1,110 +1,123 @@
-🚀 StorageX: Distributed Video Transcoding System
-StorageX is a full-stack, distributed video management platform. It allows users to upload high-definition videos, which are then processed asynchronously by background workers to ensure a smooth viewing experience. The architecture is built for scale, using a microservices approach.
+# 🚀 StorageX — Distributed Video Transcoding System
 
-💡 The Idea
-The core problem StorageX solves is the "heavy lift" of video processing. Instead of making a user wait for a video to upload and convert in their browser, StorageX:
+**StorageX** is a full-stack, distributed video management platform designed to handle high-definition video uploads and processing at scale.  
+Instead of blocking the user during heavy video operations, StorageX offloads processing to background workers, ensuring a smooth and responsive user experience.
 
-Ingests the raw file to private S3 storage.
+The system is built using a **microservices architecture**, making it scalable, resilient, and production-ready.
 
-Queues a job in RabbitMQ.
+---
 
-Processes the video (transcoding to 720p/H.264) on a separate worker node using FFmpeg.
+## 💡 Problem & Solution
 
-Delivers the processed video via a secure, high-speed player.
+High-quality video processing is expensive and slow when handled synchronously in the browser or API layer.
 
-🛠 Technology Stack
-Frontend
-Next.js 16: React framework for the dashboard and authentication.
+**StorageX solves this by:**
 
-Tailwind CSS: High-contrast, "Neo-brutalism" design (Black/White/Bold).
+1. Uploading raw video files to private S3-compatible storage.
+2. Queuing a background job using RabbitMQ.
+3. Transcoding videos asynchronously (720p / H.264) using FFmpeg.
+4. Delivering the optimized video through a secure, high-performance player.
 
-TypeScript: Type-safe API interactions.
+This approach eliminates long upload waits and enables horizontal scaling.
 
-Backend (API & Worker)
-FastAPI: High-performance Python API.
+---
 
-SQLAlchemy: ORM for PostgreSQL database management.
+## 🛠 Technology Stack
 
-FFmpeg: The engine used by workers to transcode and compress video.
+### Frontend
+- **Next.js 16** — React framework for dashboard, authentication, and routing  
+- **TypeScript** — Type-safe API communication  
+- **Tailwind CSS** — High-contrast *Neo-brutalism* design (Black / White / Bold)
 
-Pydantic: Data validation and schemas.
+### Backend (API & Workers)
+- **FastAPI** — High-performance Python API  
+- **SQLAlchemy** — ORM for PostgreSQL  
+- **Pydantic** — Data validation & schemas  
+- **FFmpeg** — Video transcoding engine
 
-DevOps & Infrastructure
-Docker & Docker Compose: Orchestrates the entire 7-container stack.
+### DevOps & Infrastructure
+- **Docker & Docker Compose** — Full stack orchestration (7 containers)  
+- **RabbitMQ** — Message broker for background jobs  
+- **MinIO** — High-performance, S3-compatible object storage  
+- **PostgreSQL** — Relational database for users & video metadata  
 
-RabbitMQ: Message broker for handling the background task queue.
+---
 
-MinIO: High-performance, S3-compatible object storage.
+## 🧠 System Architecture & Logic
 
-PostgreSQL: Relational database for user data and video metadata.
+### Authentication
+- JWT-based authentication  
+- Secure password hashing with **Bcrypt**
 
-🧠 System Logic & Architecture
-Auth Layer: Uses JWT (JSON Web Tokens) with Bcrypt password hashing.
+### Role-Based Access Control (RBAC)
+- **Users**
+  - Upload videos
+  - View their own library
+  - Delete their own content
+- **Admins**
+  - View and manage all videos across the system
 
-Role-Based Access (RBAC):
 
-Users: Can upload, view, and delete their own videos.
+### Worker Lifecycle
+1. Listens for `video_tasks` in RabbitMQ  
+2. Downloads raw video from storage  
+3. Transcodes locally using FFmpeg  
+4. Uploads processed output  
+5. Updates video status in PostgreSQL (`completed`)
 
-Admins: Can view and manage the entire library across all users.
+---
 
-Storage Logic: Uses a partitioned folder structure:
+## 🚀 Getting Started
 
-raw/user\_{id}/: Original uploads.
+### Requirements
+- Docker Desktop (Windows / macOS / Linux)
+- Git
 
-processed/user\_{id}/: Final, optimized versions.
-
-Worker Lifecycle:
-
-The worker listens for video_tasks.
-
-Downloads from the "Raw" bucket -> Transcodes locally -> Uploads to "Processed" bucket -> Updates Database status to completed.
-
-🚀 How to Use
-Requirements
-Docker Desktop (Windows/Mac/Linux)
-
-Git
-
-Installation
+### Installation
 Clone the repository:
-
-Bash
-
 git clone https://github.com/your-username/storagex.git
 cd storagex
-Start the entire stack:
 
-Bash
-
+## 🚀 Running the Full Stack
+Start the entire StorageX stack using Docker Compose:
 docker-compose up --build -d
-Access the application:
 
-Frontend: http://localhost:3000
+## 🌐 Access Points
+Once the stack is running, you can access the following services locally:
 
-API Docs (Swagger): http://localhost:8000/docs
+- **Frontend (Dashboard):**
+  - http://localhost:3000
 
-MinIO Console: http://localhost:9001 (User: minioadmin | Pass: minioadmin)
+- **API Documentation (Swagger):**
+  - http://localhost:8000/docs
 
-Default Admin Account
-The system automatically seeds a Super Admin account on the first launch:
+- **MinIO Console:**
+  - http://localhost:9001
+  - Username: minioadmin
+  - Password: minioadmin
 
-Email: <write youre email>
+## 🔐 Default Admin Account
+On first launch, StorageX automatically seeds a Super Admin account:
+Email: <your-email>
+Password: <your-password>
 
-Password: <write youre password>
+## 🔐 ⚠️ Security Notice:
+These credentials are intended for local development only.
+Always change or disable default credentials in production environments.
 
-📁 Project Structure
-Plaintext
-
-.
-├── backend/
-│ ├── routers/ # API Endpoints (Users, Videos)
-│ ├── models.py # SQLAlchemy Database Models
-│ ├── schemas.py # Pydantic Data Models
-│ ├── worker.py # FFmpeg Background Worker
-│ ├── main.py # FastAPI Entry Point & Startup Seeding
-│ └── Dockerfile
-├── frontend/
-│ ├── app/ # Next.js Pages (Dashboard, Login, Register)
-│ ├── lib/ # API Service Layer
-│ └── Dockerfile
-└── docker-compose.yml # Infrastructure Orchestration
+## 📁 Project Structure
+```
+    .
+    ├── backend/
+    │   ├── routers/        # API Endpoints (Users, Videos)
+    │   ├── models.py       # SQLAlchemy Database Models
+    │   ├── schemas.py      # Pydantic Data Models
+    │   ├── worker.py       # FFmpeg Background Worker
+    │   ├── main.py         # FastAPI Entry Point & Startup Seeding
+    │   └── Dockerfile
+    ├── frontend/
+    │   ├── app/            # Next.js Pages (Dashboard, Login, Register)
+    │   ├── lib/            # API Service Layer
+    │   └── Dockerfile
+    └── docker-compose.yml  # Infrastructure Orchestration
+```
