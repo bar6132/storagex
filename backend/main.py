@@ -83,14 +83,14 @@ async def seed_database():
 
     users_to_seed = [
         {
-            "email": "barbar6132@gmail.com",
-            "password": "barbar6132",
+            "email": "",
+            "password": "",
             "is_admin": True,
             "label": "ADMIN"
         },
         {
-            "email": "bar6132@gmail.com",
-            "password": "bar6132",
+            "email": "",
+            "password": "",
             "is_admin": False, 
             "label": "REGULAR USER"
         }
