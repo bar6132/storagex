@@ -24,7 +24,9 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
-    access_token = main_utils.create_access_token(data={"sub": user.email})
+    access_token = main_utils.create_access_token(
+        data={"sub": user.email, "id": user.id} 
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/admin/users", response_model=List[schemas.UserOut])

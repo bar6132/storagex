@@ -32,3 +32,9 @@ class VideoOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class NotifySchema(BaseModel):
+    user_id: int
+    message: str
+    video_id: str
+    status: str

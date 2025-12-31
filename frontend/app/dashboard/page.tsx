@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ApiService } from "@/lib/services";
 import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar"; 
+import { jwtDecode } from "jwt-decode"; 
 
 export default function DashboardPage() {
   const [videos, setVideos] = useState<any[]>([]);
@@ -12,47 +13,70 @@ export default function DashboardPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null); 
   const [isMounted, setIsMounted] = useState(false);
-  
   const [isAdmin, setIsAdmin] = useState(false); 
   
+  const ws = useRef<WebSocket | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
     const token = localStorage.getItem("storagex_token");
+    
     if (!token) {
       router.push("/login");
-    } else {
-      fetchVideos();
+      return;
+    } 
+
+    try {
+      const decoded: any = jwtDecode(token);
+      const userId = decoded.sub_id || decoded.id; 
+      if (userId) connectWebSocket(userId);
+    } catch (e) {
+      console.error("Token error", e);
     }
+
+    fetchVideos();
+
+    return () => {
+      if (ws.current) ws.current.close();
+    };
   }, [router]);
 
-  useEffect(() => {
-    const hasProcessing = videos.some(v => v.status === "pending" || v.status === "processing");
-    if (hasProcessing) {
-      const interval = setInterval(fetchVideos, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [videos]);
+  const connectWebSocket = (userId: number) => {
+    const wsUrl = `ws://localhost:8000/ws/${userId}`;
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => console.log("WS Connected");
+    
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "video_update") {
+        setVideos((prev) => prev.map((v) => 
+          v.id === data.video_id ? { ...v, status: data.status } : v
+        ));
+        
+        if (data.status === "completed") {
+        }
+      }
+    };
+
+    ws.current = socket;
+  };
 
   const fetchVideos = async () => {
     try {
       const adminRes = await ApiService.getAllVideosAdmin();
-      
       if (adminRes.ok) {
         setIsAdmin(true);
         setVideos(await adminRes.json());
         return; 
       } 
-
       const res = await ApiService.getMyVideos();
       if (res.ok) {
         setIsAdmin(false);
         setVideos(await res.json());
       }
-    } catch (e) { 
-      console.error("Fetch error:", e); 
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleUpload = async () => {
@@ -62,9 +86,12 @@ export default function DashboardPage() {
       const res = await ApiService.uploadVideo(file, title, resolution); 
       if (res.ok) {
         setFile(null); setTitle("");
-        fetchVideos();
-      } else { alert("Upload failed: Error or Quota (if not admin)."); }
-    } catch (err) { console.error(err); } 
+        fetchVideos(); 
+      } else { 
+        const errorData = await res.json();
+        alert(errorData.detail || "Upload failed"); 
+      }
+    } catch (err) { alert("Network error."); } 
     finally { setIsUploading(false); }
   };
 
@@ -150,8 +177,10 @@ export default function DashboardPage() {
                   {v.is_deleted && isAdmin && (
                     <span className="bg-red-600 text-white text-[10px] font-black px-2 py-1 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">DELETED</span>
                   )}
+                  
                   <span className={`text-[10px] font-black px-2 py-1 border border-black uppercase text-black ${
-                    v.status === 'completed' ? 'bg-green-400' : 'bg-yellow-300'
+                    v.status === 'completed' ? 'bg-green-400' : 
+                    v.status === 'failed' ? 'bg-red-500 text-white' : 'bg-yellow-300 animate-pulse'
                   }`}>{v.status}</span>
                 </div>
               </div>

@@ -2,11 +2,26 @@ import pika
 import json
 import os
 import subprocess
+import requests 
 from database import SessionLocal
 from models import VideoJob 
 from tasks import S3_CLIENT
 import datetime
 import time
+
+API_URL = "http://api:8000/internal/notify"
+
+def send_notification(user_id, video_id, status, message):
+    try:
+        payload = {
+            "user_id": user_id,
+            "video_id": video_id,
+            "status": status,
+            "message": message
+        }
+        requests.post(API_URL, json=payload, timeout=5)
+    except Exception as e:
+        print(f"[!] Notification failed: {e}")
 
 def process_video(job_id, input_filename, resolution="720p"):
     db = SessionLocal()
@@ -17,6 +32,8 @@ def process_video(job_id, input_filename, resolution="720p"):
         return
 
     try:
+        send_notification(job.owner_id, job_id, "processing", "Processing started...")
+
         job.status = "processing"
         db.commit()
         print(f"[*] Processing job {job_id} ({resolution})...")
@@ -47,6 +64,8 @@ def process_video(job_id, input_filename, resolution="720p"):
         job.processed_at = datetime.datetime.utcnow()
         db.commit()
 
+        send_notification(job.owner_id, job_id, "completed", "Video is ready!")
+
         try:
             S3_CLIENT.delete_object(Bucket="raw-videos", Key=input_filename)
         except:
@@ -58,6 +77,7 @@ def process_video(job_id, input_filename, resolution="720p"):
         print(f"[!] Error: {e}")
         job.status = "failed"
         db.commit()
+        send_notification(job.owner_id, job_id, "failed", "Processing failed")
     finally:
         if os.path.exists(local_input): os.remove(local_input)
         if os.path.exists(local_output): os.remove(local_output)
