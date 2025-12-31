@@ -20,7 +20,13 @@ High-quality video processing is expensive and slow when handled synchronously i
 
 This approach eliminates long upload waits and enables horizontal scaling.
 
----
+## ✨ Key Features
+
+- **Real-Time Updates (WebSockets):** The dashboard updates instantly when a video finishes processing—no page refreshes required. The backend pushes events directly to the client.
+- **Smart Storage Quotas:** - Regular users get a **500MB** free tier limit with visual usage tracking.
+  Admins have **unlimited** storage and can manage all user content.
+- **Dynamic Quality Selection:** Users can choose their target resolution (1080p, 720p, 480p) before uploading. The worker dynamically adjusts the FFmpeg transcoding parameters.
+- **Admin "Super View":** Special admin accounts can see every video in the system, monitor global usage, and perform hard deletions to clean up storage.
 
 ## 🛠 Technology Stack
 
@@ -58,12 +64,13 @@ This approach eliminates long upload waits and enables horizontal scaling.
   - View and manage all videos across the system
 
 
-### Worker Lifecycle
-1. Listens for `video_tasks` in RabbitMQ  
-2. Downloads raw video from storage  
-3. Transcodes locally using FFmpeg  
-4. Uploads processed output  
-5. Updates video status in PostgreSQL (`completed`)
+🔄 Event-Driven Worker Lifecycle
+
+1. **Ingest:** API receives upload -> Saves raw file to MinIO -> Pushes task to RabbitMQ.
+2. **Process:** Worker consumes task -> Downloads video -> Transcodes via FFmpeg.
+3. **Notify:** - Worker sends a webhook to the API (`/internal/notify`).
+   - API pushes a **WebSocket event** to the specific connected user.
+   - Frontend creates a "Toast" notification or updates the video card status instantly.
 
 ---
 
