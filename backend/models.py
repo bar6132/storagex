@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Boolean
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Boolean, BigInteger
 from sqlalchemy.orm import relationship
 from database import Base
 import datetime
@@ -13,6 +13,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_admin = Column(Boolean, default=False)
+    storage_limit = Column(BigInteger, default=524288000)
     videos = relationship("VideoJob", back_populates="owner")
 
 class VideoJob(Base):
@@ -21,12 +22,12 @@ class VideoJob(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, nullable=True)
     filename = Column(String, nullable=False)
-    
+    file_size = Column(BigInteger, default=0) 
     status = Column(String, default="pending") 
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
     s3_key = Column(String, nullable=True)
-    is_deleted = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False) 
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="videos")

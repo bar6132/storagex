@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Form
 from sqlalchemy.orm import Session
+from sqlalchemy import func 
 from typing import List
 import models, schemas, database, tasks, main_utils
 
@@ -8,15 +9,26 @@ router = APIRouter(prefix="/videos", tags=["Videos"])
 @router.post("/upload")
 async def create_upload_job(
     file: UploadFile = File(...), 
-    title: str = Form(...),  
+    title: str = Form(...),
+    resolution: str = Form("720p"),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(main_utils.get_current_user) 
 ):
+    current_usage = db.query(func.sum(models.VideoJob.file_size)).filter(
+        models.VideoJob.owner_id == current_user.id,
+        models.VideoJob.is_deleted == False
+    ).scalar() or 0
+
+    if not current_user.is_admin: 
+        if current_usage + file.size > current_user.storage_limit:
+            raise HTTPException(status_code=400, detail="Quota exceeded!")
+
     new_job = models.VideoJob(
         filename=file.filename,
         title=title,
         owner_id=current_user.id,
-        status="pending"
+        status="pending",
+        file_size=file.size 
     )
     db.add(new_job)
     db.commit()
@@ -26,7 +38,8 @@ async def create_upload_job(
     
     await file.seek(0)
     tasks.upload_to_s3(file.file, "raw-videos", s3_filename)
-    tasks.notify_worker(new_job.id, s3_filename)
+    
+    tasks.notify_worker(new_job.id, s3_filename, resolution)
     
     return {"job_id": new_job.id, "status": "queued", "owner": current_user.email}
 
@@ -39,6 +52,7 @@ async def list_videos(
         models.VideoJob.owner_id == current_user.id,
         models.VideoJob.is_deleted == False
     ).all()
+
 @router.get("/status/{job_id}", response_model=schemas.VideoOut)
 async def get_job_status(job_id: str, db: Session = Depends(database.get_db)):
     job = db.query(models.VideoJob).filter(models.VideoJob.id == job_id).first()
@@ -80,6 +94,7 @@ async def delete_video(
             print(f"S3 Purge failed: {e}")
             
         db.delete(video) 
+        db.commit() 
         return {"message": "Admin: Video purged permanently"}
 
     if video.owner_id != current_user.id:

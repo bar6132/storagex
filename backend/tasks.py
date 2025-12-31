@@ -14,12 +14,16 @@ def upload_to_s3(file_obj, bucket, object_name):
     S3_CLIENT.upload_fileobj(file_obj, bucket, object_name)
     return object_name
 
-def notify_worker(job_id, filename):
+def notify_worker(job_id, filename, resolution="720p"):
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
     channel.queue_declare(queue='video_tasks', durable=True)
     
-    message = json.dumps({"job_id": job_id, "filename": filename})
+    message = json.dumps({
+        "job_id": job_id, 
+        "filename": filename, 
+        "resolution": resolution
+    })
     
     channel.basic_publish(
         exchange='',

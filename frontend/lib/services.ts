@@ -9,40 +9,31 @@ const getAuthHeader = (): Record<string, string> => {
 };
 
 export const ApiService = {
-  
-  // async login(formData: FormData): Promise<Response> {
-  //   return await fetch(`${API_URL}/token`, {
-  //     method: "POST",
-  //     body: formData, 
-  //   });
-  // },
   async login(formData: FormData): Promise<Response> {
-  const params = new URLSearchParams();
-  formData.forEach((value, key) => {
-    params.append(key, value.toString());
-  });
-
-  return await fetch(`${API_URL}/users/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: params.toString(),
-  });
+    const params = new URLSearchParams();
+    formData.forEach((value, key) => {
+      params.append(key, value.toString());
+    });
+    return await fetch(`${API_URL}/users/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
   },
 
   async register(userData: object): Promise<Response> {
-    return await fetch(`${API_URL}/register`, {
+    return await fetch(`${API_URL}/users/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(userData),
     });
   },
 
-  async uploadVideo(file: File, title: string): Promise<Response> {
+  async uploadVideo(file: File, title: string, resolution: string): Promise<Response> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", title); 
+    formData.append("resolution", resolution);
 
     return await fetch(`${API_URL}/videos/upload`, {
       method: "POST",
@@ -53,13 +44,6 @@ export const ApiService = {
 
   async getMyVideos(): Promise<Response> {
     return await fetch(`${API_URL}/videos/my-videos`, {
-      method: "GET",
-      headers: getAuthHeader(),
-    });
-  },
-
-  async getJobStatus(jobId: string): Promise<Response> {
-    return await fetch(`${API_URL}/videos/status/${jobId}`, {
       method: "GET",
       headers: getAuthHeader(),
     });
@@ -78,25 +62,25 @@ export const ApiService = {
       headers: getAuthHeader(),
     });
   },
-  
+
   async adminGetUsers(): Promise<Response> {
     return await fetch(`${API_URL}/users/admin/users`, {
       method: "GET",
       headers: getAuthHeader(),
     });
   },
-  async adminDeleteUser(id: number): Promise<Response> {
-    return await fetch(`${API_URL}/users/admin/users/${id}`, {
+
+  async adminDeleteUser(userId: number): Promise<Response> {
+    return await fetch(`${API_URL}/users/admin/users/${userId}`, {
       method: "DELETE",
       headers: getAuthHeader(),
     });
   },
-  async adminPromoteUser(id: number): Promise<Response> {
-    return await fetch(`${API_URL}/users/admin/users/${id}/make-admin`, {
+
+  async adminPromoteUser(userId: number): Promise<Response> {
+    return await fetch(`${API_URL}/users/admin/users/${userId}/make-admin`, {
       method: "PATCH",
       headers: getAuthHeader(),
     });
-  },
-
+  }
 };
-

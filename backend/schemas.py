@@ -11,6 +11,7 @@ class UserOut(BaseModel):
     email: EmailStr
     is_admin: bool
     created_at: datetime
+    storage_limit: int 
     class Config:
         from_attributes = True
 
@@ -22,6 +23,7 @@ class VideoOut(BaseModel):
     s3_key: Optional[str] = None
     created_at: datetime
     owner_id: int
+    file_size: int
     is_deleted: bool
 
     class Config:

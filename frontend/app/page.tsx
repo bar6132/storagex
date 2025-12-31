@@ -1,11 +1,30 @@
-import Navbar from "@/app/components/Navbar";
+"use client";
+import { useEffect, useState } from "react"; 
+import { ApiService } from "@/lib/services"; 
+import Navbar from "@/app/components/Navbar"; 
 import Link from "next/link";
 
 export default function HomePage() {
+  const [videos, setVideos] = useState<any[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("storagex_token");
+    if (token) {
+      ApiService.getMyVideos()
+        .then((res) => {
+          if (res.ok) return res.json();
+        })
+        .then((data) => {
+          if (data) setVideos(data);
+        })
+        .catch((err) => console.error("Homepage fetch error:", err));
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-white font-sans text-black">
-      <Navbar />
-      
+      <Navbar videos={videos} />
+
       <main className="max-w-6xl mx-auto px-8 py-20 flex flex-col items-center text-center">
         <div className="mb-6 bg-yellow-300 border-2 border-black px-4 py-1 font-black text-sm uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
           Distributed Video Processing
