@@ -5,6 +5,9 @@ from database import engine, Base, get_db
 import models
 from routers import users, videos
 import schemas  
+import time
+from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
 
 Base.metadata.create_all(bind=engine)
 
@@ -79,8 +82,23 @@ async def seed_database():
     from database import SessionLocal
     from models import User
     from main_utils import get_password_hash 
-    db = SessionLocal()
+    from sqlalchemy import text  
 
+    db = None
+    retries = 5
+    while retries > 0:
+        try:
+            db = SessionLocal()
+            db.execute(text("SELECT 1")) 
+            print("✅ Database is ready!")
+            break
+        except Exception as e:
+            retries -= 1
+            print(f"⏳ Database not ready yet... waiting 2 seconds ({retries} retries left)")
+            time.sleep(2)
+            if retries == 0:
+                print("❌ Could not connect to DB after multiple tries.")
+                raise e
     users_to_seed = [
         {
             "email": "",
@@ -89,7 +107,7 @@ async def seed_database():
             "label": "ADMIN"
         },
         {
-            "email": "",
+            "email": "", 
             "password": "",
             "is_admin": False, 
             "label": "REGULAR USER"
@@ -117,11 +135,12 @@ async def seed_database():
                 if user.is_admin != user_data["is_admin"]:
                     user.is_admin = user_data["is_admin"]
                     db.commit()
-                    print(f"[+] UPDATED: {user_data['email']} role changed to {user_data['label']}.")
+                    print(f"[+] UPDATED: {user_data['email']} role changed.")
                 else:
-                    print(f"[=] User {user_data['email']} already exists as {user_data['label']}.")
+                    print(f"[=] User {user_data['email']} already exists.")
 
     except Exception as e:
         print(f"[!] Error during database seeding: {e}")
     finally:
-        db.close()
+        if db:
+            db.close()

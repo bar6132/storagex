@@ -29,10 +29,29 @@ export const ApiService = {
     });
   },
 
-  async uploadVideo(file: File, title: string, resolution: string): Promise<Response> {
+  async getFeed(): Promise<Response> {
+    return await fetch(`${API_URL}/videos/feed`, {
+      method: "GET",
+      headers: getAuthHeader(),
+    });
+  },
+
+  async uploadVideo(
+    file: File, 
+    title: string, 
+    description: string,    
+    category: string,       
+    isShared: boolean,      
+    resolution: string
+  ): Promise<Response> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", title); 
+    
+    formData.append("description", description);
+    formData.append("category", category);
+    formData.append("is_shared", isShared.toString());
+    
     formData.append("resolution", resolution);
 
     return await fetch(`${API_URL}/videos/upload`, {

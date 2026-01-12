@@ -3,12 +3,19 @@ version: '3.8'
 services:
   db:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: transcodex
     ports:
       - "5432:5432"
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=transcodex
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d transcodex"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -18,6 +25,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - ./rabbitmq_data:/var/lib/rabbitmq
 
   minio:
     image: minio/minio
@@ -30,7 +39,7 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
       MINIO_API_CORS_ALLOW_ORIGIN: "*"
     volumes:
-      - minio_data:/data
+      - ./minio_data:/data
 
   api:
     build: ./backend
@@ -44,9 +53,12 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - S3_ENDPOINT=http://minio:9000
     depends_on:
-      - db
-      - rabbitmq
-      - minio
+      rabbitmq:
+        condition: service_started
+      minio:
+        condition: service_started
+      db:
+        condition: service_healthy
 
   worker:
     build: ./backend
@@ -54,6 +66,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
+      - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://user:password@db:5432/transcodex
       - RABBITMQ_HOST=rabbitmq
       - S3_ENDPOINT=http://minio:9000
@@ -86,6 +99,3 @@ services:
       /usr/bin/mc anonymous set public myminio/processed-videos || true;
       exit 0;
       "
-
-volumes:
-  minio_data:
