@@ -99,9 +99,13 @@ def main():
             time.sleep(5)
 
     channel = connection.channel()
-    channel.queue_declare(queue='video_tasks', durable=True)
+    
+    QUEUE_NAME = 'video_tasks'
+    
+    channel.queue_declare(queue=QUEUE_NAME, durable=True)
     channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue='video_tasks', on_message_callback=callback)
+    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
+    
     print(' [*] Worker Ready')
     channel.start_consuming()
 

@@ -19,6 +19,9 @@ class VideoOut(BaseModel):
     id: str  
     filename: str
     title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = "Other"
+    is_shared: bool
     status: str
     s3_key: Optional[str] = None
     created_at: datetime

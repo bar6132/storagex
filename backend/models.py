@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Boolean, BigInteger
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Boolean, BigInteger, Text
 from sqlalchemy.orm import relationship
 from database import Base
 import datetime
@@ -18,13 +18,14 @@ class User(Base):
 
 class VideoJob(Base):
     __tablename__ = "video_jobs"
-
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, nullable=True)
+    description = Column(Text, nullable=True)        
+    category = Column(String, default="Other")       
+    is_shared = Column(Boolean, default=False)       
     filename = Column(String, nullable=False)
     file_size = Column(BigInteger, default=0) 
     status = Column(String, default="pending") 
-    
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
     s3_key = Column(String, nullable=True)

@@ -25,3 +25,8 @@ backend/tmp/
 *.mp4
 *.mov
 *.avi
+
+# Local volumes / data folders
+minio_data/
+postgres_data/
+rabbitmq_data/
