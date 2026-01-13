@@ -101,5 +101,24 @@ export const ApiService = {
       method: "PATCH",
       headers: getAuthHeader(),
     });
+  },
+
+async searchVideos(query: string, category: string): Promise<Response> {
+    const params = new URLSearchParams();
+    if (query) params.append("q", query);
+    if (category && category !== "All") params.append("category", category);
+
+    return await fetch(`${API_URL}/videos/search?${params.toString()}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+  },
+
+  async getPlayUrl(videoId: string): Promise<Response> {
+    return await fetch(`${API_URL}/videos/play/${videoId}`, {
+      method: "GET",
+      headers: getAuthHeader(), 
+    });
   }
 };
+

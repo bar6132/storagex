@@ -34,3 +34,19 @@ def notify_worker(job_id, filename, resolution="720p"):
         properties=pika.BasicProperties(delivery_mode=2) 
     )
     connection.close()
+
+def get_presigned_url(object_name, bucket="processed-videos", expiration=3600):
+    """Generate a presigned URL to share an S3 object"""
+    try:
+        response = S3_CLIENT.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket,
+                'Key': object_name
+            },
+            ExpiresIn=expiration
+        )
+        return response.replace("minio:9000", "localhost:9000")
+    except Exception as e:
+        print(f"Error generating URL: {e}")
+        return None

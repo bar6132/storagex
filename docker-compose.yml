@@ -1,3 +1,126 @@
+# version: '3.8'
+
+# services:
+#   db:
+#     image: postgres:15-alpine
+#     ports:
+#       - "5432:5432"
+#     environment:
+#       - POSTGRES_USER=user
+#       - POSTGRES_PASSWORD=password
+#       - POSTGRES_DB=transcodex
+#     volumes:
+#       - ./postgres_data:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U user -d transcodex"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 5
+
+#   rabbitmq:
+#     image: rabbitmq:3-management
+#     ports:
+#       - "5672:5672" 
+#       - "15672:15672" 
+#     environment:
+#       - RABBITMQ_DEFAULT_USER=guest
+#       - RABBITMQ_DEFAULT_PASS=guest
+#     volumes:
+#       - ./rabbitmq_data:/var/lib/rabbitmq
+
+#   minio:
+#     image: minio/minio
+#     command: server /data --console-address ":9001"
+#     ports:
+#       - "9000:9000" 
+#       - "9001:9001" 
+#     environment:
+#       - MINIO_ROOT_USER=minioadmin
+#       - MINIO_ROOT_PASSWORD=minioadmin
+#       - MINIO_API_CORS_ALLOW_ORIGIN="*"
+#     volumes:
+#       - ./minio_data:/data
+
+#   elasticsearch:
+#     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+#     container_name: storagex-elastic
+#     environment:
+#       - node.name=storagex-elastic
+#       - cluster.name=storagex-docker-cluster
+#       - discovery.type=single-node
+#       - bootstrap.memory_lock=true
+#       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#     ulimits:
+#       memlock:
+#         soft: -1
+#         hard: -1
+#     volumes:
+#       - ./es_data:/usr/share/elasticsearch/data
+#     ports:
+#       - "9200:9200"
+
+#   api:
+#     build: ./backend
+#     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+#     volumes:
+#       - ./backend:/app
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       - DATABASE_URL=postgresql://user:password@db:5432/transcodex
+#       - RABBITMQ_HOST=rabbitmq
+#       - S3_ENDPOINT=http://minio:9000
+#       - ELASTICSEARCH_URL=http://elasticsearch:9200 
+#     depends_on:
+#       rabbitmq:
+#         condition: service_started
+#       minio:
+#         condition: service_started
+#       db:
+#         condition: service_healthy
+#       elasticsearch:
+#         condition: service_started
+
+#   worker:
+#     build: ./backend
+#     command: python worker.py
+#     volumes:
+#       - ./backend:/app
+#     environment:
+#       - PYTHONUNBUFFERED=1
+#       - DATABASE_URL=postgresql://user:password@db:5432/transcodex
+#       - RABBITMQ_HOST=rabbitmq
+#       - S3_ENDPOINT=http://minio:9000
+#     depends_on:
+#       - db
+#       - rabbitmq
+#       - minio
+
+#   frontend:
+#     build: ./frontend
+#     ports:
+#       - "3000:3000"
+#     volumes:
+#       - ./frontend:/app
+#       - /app/node_modules 
+#     environment:
+#       - NEXT_PUBLIC_API_URL=http://localhost:8000
+#     depends_on:
+#       - api
+
+#   init-minio:
+#     image: minio/mc
+#     depends_on:
+#       - minio
+#     entrypoint: >
+#       /bin/sh -c "
+#       until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin) do echo 'Waiting for MinIO...' && sleep 1; done;
+#       /usr/bin/mc mb myminio/raw-videos || true;
+#       /usr/bin/mc mb myminio/processed-videos || true;
+#       /usr/bin/mc anonymous set public myminio/processed-videos || true;
+#       exit 0;
+#       "
+
 version: '3.8'
 
 services:
@@ -23,8 +146,8 @@ services:
       - "5672:5672" 
       - "15672:15672" 
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
     volumes:
       - ./rabbitmq_data:/var/lib/rabbitmq
 
@@ -35,11 +158,30 @@ services:
       - "9000:9000" 
       - "9001:9001" 
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_API_CORS_ALLOW_ORIGIN="*"
     volumes:
       - ./minio_data:/data
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    container_name: storagex-elastic
+    environment:
+      - node.name=storagex-elastic
+      - cluster.name=storagex-docker-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      # 👇 FIXED: Removed "./" to use a Named Volume instead of a Windows folder
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
 
   api:
     build: ./backend
@@ -52,6 +194,7 @@ services:
       - DATABASE_URL=postgresql://user:password@db:5432/transcodex
       - RABBITMQ_HOST=rabbitmq
       - S3_ENDPOINT=http://minio:9000
+      - ELASTICSEARCH_URL=http://elasticsearch:9200 
     depends_on:
       rabbitmq:
         condition: service_started
@@ -59,6 +202,8 @@ services:
         condition: service_started
       db:
         condition: service_healthy
+      elasticsearch:
+        condition: service_started
 
   worker:
     build: ./backend
@@ -99,3 +244,6 @@ services:
       /usr/bin/mc anonymous set public myminio/processed-videos || true;
       exit 0;
       "
+
+volumes:
+  es_data:
