@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List, Optional
 import models, schemas, database, tasks, main_utils
+import search
 
 router = APIRouter(prefix="/videos", tags=["Videos"])
 
@@ -55,6 +56,8 @@ async def create_upload_job(
     )
     db.add(new_job)
     db.commit()
+    if is_shared:
+        search.index_video(new_job.id, new_job.title, description, category)
     db.refresh(new_job)
     
     s3_filename = f"raw/user_{current_user.id}/{new_job.id}-{file.filename}"
@@ -115,12 +118,61 @@ async def delete_video(
                 S3_CLIENT.delete_object(Bucket="processed-videos", Key=video.s3_key)
         except Exception as e:
             print(f"S3 Purge failed: {e}")
-            
+
         db.delete(video) 
         db.commit() 
         return {"message": "Admin: Video purged permanently"}
-
     else:
         video.is_deleted = True 
         db.commit()
         return {"message": "Video moved to trash"}
+
+
+@router.get("/search", response_model=List[schemas.VideoOut])
+def search_public_videos(
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    db: Session = Depends(database.get_db)
+):
+    query = db.query(models.VideoJob).filter(
+        models.VideoJob.is_shared == True,
+        models.VideoJob.is_deleted == False
+    )
+    if category and category != "All":
+        query = query.filter(models.VideoJob.category == category)
+    if q:
+        try:
+            video_ids = search.search_videos(q, None)
+        except Exception as e:
+            print(f"Search failed: {e}")
+            video_ids = []
+        
+        if not video_ids:
+            return [] 
+    
+        query = query.filter(models.VideoJob.id.in_(video_ids))
+    return query.order_by(models.VideoJob.created_at.desc()).all()
+
+@router.get("/play/{video_id}")
+async def get_video_url(
+    video_id: str, 
+    db: Session = Depends(database.get_db),
+    current_user: Optional[models.User] = Depends(main_utils.get_current_user_optional)
+):
+    video = db.query(models.VideoJob).filter(models.VideoJob.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    is_owner = current_user and (video.owner_id == current_user.id or current_user.is_admin)
+    is_public = getattr(video, "is_shared", False) 
+    if not is_public and not is_owner:
+         raise HTTPException(status_code=403, detail="Not authorized to view this private video")
+
+    if not video.s3_key:
+        raise HTTPException(status_code=400, detail="Video is not ready yet")
+
+    url = tasks.get_presigned_url(video.s3_key, "processed-videos")
+    if not url:
+        raise HTTPException(status_code=500, detail="Could not generate playback link")
+        
+    return {"url": url}

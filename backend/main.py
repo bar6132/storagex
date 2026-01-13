@@ -8,6 +8,7 @@ import schemas
 import time
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import text
+import search
 
 Base.metadata.create_all(bind=engine)
 
@@ -141,6 +142,10 @@ async def seed_database():
 
     except Exception as e:
         print(f"[!] Error during database seeding: {e}")
+    try:
+        search.create_index()
+    except Exception as e:
+        print(f"⚠️ Elasticsearch not ready: {e}")
     finally:
         if db:
             db.close()
