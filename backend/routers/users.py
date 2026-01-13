@@ -37,3 +37,37 @@ async def list_users_admin(
     if not current_user.is_admin: 
         raise HTTPException(status_code=403, detail="Admin only")
     return db.query(models.User).all()
+
+@router.delete("/admin/users/{user_id}")
+def delete_user(
+    user_id: int, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(main_utils.get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    
+    user_to_delete = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user_to_delete:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    db.delete(user_to_delete)
+    db.commit()
+    return {"message": "User deleted"}
+
+@router.patch("/admin/users/{user_id}/make-admin")
+def promote_user(
+    user_id: int, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(main_utils.get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.is_admin = True
+    db.commit()
+    return {"message": "User promoted to Admin"}

@@ -41,8 +41,13 @@ export default function Navbar({ videos = [], isAdmin = false }: { videos?: any[
       <Link href="/" className="text-2xl font-black text-black tracking-tighter hover:opacity-80">
         STORAGE<span className="text-blue-600">X</span>
       </Link>
-
       <div className="flex gap-6 items-center">
+        {isAdmin && (
+          <Link href="/admin" className="text-black font-bold hover:opacity-80">
+            ADMIN
+          </Link>
+        )}
+
         {isLoggedIn && !isAdmin && (
           <div className="hidden md:flex flex-col w-48 mx-4">
             <div className="flex justify-between text-[10px] font-black mb-1 text-black uppercase">
