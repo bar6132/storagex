@@ -4,6 +4,7 @@ from sqlalchemy import func, desc
 from typing import List, Optional
 import models, schemas, database, tasks, main_utils
 import search
+from sqlalchemy.orm import joinedload
 
 router = APIRouter(prefix="/videos", tags=["Videos"])
 
@@ -83,18 +84,6 @@ async def get_job_status(job_id: str, db: Session = Depends(database.get_db)):
     job = db.query(models.VideoJob).filter(models.VideoJob.id == job_id).first()
     if not job: raise HTTPException(status_code=404, detail="Job not found")
     return job
-
-@router.get("/admin/all", response_model=List[schemas.VideoOut])
-async def get_all_videos_admin(
-    db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(main_utils.get_current_user)
-):
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Admin access required"
-        )
-    return db.query(models.VideoJob).all()
 
 @router.delete("/{video_id}")
 async def delete_video(
@@ -176,3 +165,34 @@ async def get_video_url(
         raise HTTPException(status_code=500, detail="Could not generate playback link")
         
     return {"url": url}
+
+@router.get("/admin/all", response_model=List[schemas.VideoOut])
+async def get_all_videos_admin(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(main_utils.get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    videos = db.query(models.VideoJob).options(joinedload(models.VideoJob.owner)).all()
+    
+    results = []
+    for video in videos:
+        video_data = {
+            "id": video.id,
+            "filename": video.filename,
+            "title": video.title,
+            "description": video.description,
+            "category": video.category,
+            "is_shared": video.is_shared,
+            "status": video.status,
+            "s3_key": video.s3_key,
+            "created_at": video.created_at,
+            "owner_id": video.owner_id,
+            "file_size": video.file_size,
+            "is_deleted": video.is_deleted,
+            "owner_email": video.owner.email if video.owner else "Unknown User"
+        }
+        results.append(video_data)
+            
+    return results

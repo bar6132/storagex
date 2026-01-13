@@ -10,7 +10,7 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     is_admin: bool
-    created_at: datetime
+    created_at: Optional[datetime]
     storage_limit: int 
     class Config:
         from_attributes = True
@@ -28,6 +28,7 @@ class VideoOut(BaseModel):
     owner_id: int
     file_size: int
     is_deleted: bool
+    owner_email: Optional[str] = None
 
     class Config:
         from_attributes = True
