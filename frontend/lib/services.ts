@@ -119,6 +119,13 @@ async searchVideos(query: string, category: string): Promise<Response> {
       method: "GET",
       headers: getAuthHeader(), 
     });
-  }
-};
+  },
 
+  async generateSummary(videoId: string, force: boolean = false): Promise<Response> {
+    return await fetch(`${API_URL}/videos/${videoId}/summarize?force=${force}`, {
+      method: "POST",
+      headers: getAuthHeader(),
+      body: JSON.stringify({})
+    });
+  },
+}

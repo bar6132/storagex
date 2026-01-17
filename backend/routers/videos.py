@@ -5,6 +5,7 @@ from typing import List, Optional
 import models, schemas, database, tasks, main_utils
 import search
 from sqlalchemy.orm import joinedload
+import ai_utils
 
 router = APIRouter(prefix="/videos", tags=["Videos"])
 
@@ -116,19 +117,23 @@ async def delete_video(
         db.commit()
         return {"message": "Video moved to trash"}
 
-
 @router.get("/search", response_model=List[schemas.VideoOut])
 def search_public_videos(
     q: Optional[str] = None,
     category: Optional[str] = None,
     db: Session = Depends(database.get_db)
 ):
-    query = db.query(models.VideoJob).filter(
+
+    query = db.query(models.VideoJob).options(
+        joinedload(models.VideoJob.summary_data)
+    ).filter(
         models.VideoJob.is_shared == True,
         models.VideoJob.is_deleted == False
     )
+
     if category and category != "All":
         query = query.filter(models.VideoJob.category == category)
+
     if q:
         try:
             video_ids = search.search_videos(q, None)
@@ -140,6 +145,7 @@ def search_public_videos(
             return [] 
     
         query = query.filter(models.VideoJob.id.in_(video_ids))
+        
     return query.order_by(models.VideoJob.created_at.desc()).all()
 
 @router.get("/play/{video_id}")
@@ -196,3 +202,29 @@ async def get_all_videos_admin(
         results.append(video_data)
             
     return results
+
+# @router.post("/{video_id}/summarize")
+# def summarize_video(
+#     video_id: str,
+#     db: Session = Depends(database.get_db)
+# ):
+#     video = db.query(models.VideoJob).filter(models.VideoJob.id == video_id).first()
+#     if not video:
+#         raise HTTPException(status_code=404, detail="Video not found")
+#     summary_text = ai_utils.generate_summary_stream(video.id, video.title, db)
+
+#     return {"summary": summary_text}
+
+@router.post("/{video_id}/summarize")
+def generate_video_summary(
+    video_id: str, 
+    force: bool = False, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(main_utils.get_current_user)
+):
+    video = db.query(models.VideoJob).filter(models.VideoJob.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    summary = ai_utils.generate_summary_stream(video.id, video.title, db, ignore_cache=force)
+    
+    return {"summary": summary}
