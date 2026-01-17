@@ -9,10 +9,31 @@ export default function PublicFeed() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [loading, setLoading] = useState(false);
-  
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
-
+  const [isAdmin, setIsAdmin] = useState(false); 
   const categories = ["All", "Tech", "Gaming", "Music", "Other"];
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      const token = localStorage.getItem("storagex_token");
+      if (!token) return;
+
+      try {
+        const res = await ApiService.getAllVideosAdmin();
+        if (res.ok) {
+          setIsAdmin(true); 
+        } else {
+          setIsAdmin(false);
+        }
+      } catch (err) {
+        console.error("Admin check failed", err);
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminStatus();
+  }, []);
+
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -56,8 +77,7 @@ export default function PublicFeed() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-black relative">
-      <Navbar videos={[]} isAdmin={false} />
-
+      <Navbar videos={videos} isAdmin={isAdmin} />
       {playingUrl && (
         <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
           <button 
