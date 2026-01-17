@@ -29,6 +29,7 @@ class VideoOut(BaseModel):
     file_size: int
     is_deleted: bool
     owner_email: Optional[str] = None
+    summary: Optional[str] = None
 
     class Config:
         from_attributes = True
