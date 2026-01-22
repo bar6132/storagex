@@ -1,106 +1,94 @@
-# 🚀 StorageX — Distributed Video Transcoding System
+# 🚀 StorageX — AI-Powered Distributed Video System
 
-**StorageX** is a full-stack, distributed video management platform designed to handle high-definition video uploads and processing at scale.
-Instead of blocking the user during heavy video operations, StorageX offloads processing to background workers, ensuring a smooth and responsive user experience.
+**StorageX** is a full-stack, distributed video management platform that goes beyond simple hosting. It combines high-performance transcoding with a **local generative AI pipeline** to automatically analyze, understand, and summarize video content.
 
-The system is built using a **microservices architecture**, making it scalable, resilient, and production-ready.
+Instead of just storing files, StorageX **watches** them. Using a multi-model AI approach, it identifies content (coding tutorials, gaming clips, nature vlogs) and generates concise, human-readable summaries—all running locally without external APIs.
+
+The system relies on a **microservices architecture** to ensure scalability, resilience, and a smooth, non-blocking user experience.
 
 ---
 
-## 💡 Problem & Solution
+## 💡 The Evolution: From Storage to Intelligence
 
-High-quality video processing is expensive and slow when handled synchronously in the browser or API layer.
+High-quality video processing is resource-intensive. StorageX solves this by offloading work to background workers. But we didn't stop at processing; we solved **content discovery**:
 
-**StorageX solves this by:**
+1. **Ingest & Transcode:** Videos are uploaded to private S3 storage and processed asynchronously via **RabbitMQ** and **FFmpeg**.
+2. **Visual Analysis (The Eyes):** A worker extracts keyframes and uses **Moondream** (Vision AI) to detect UI elements, code editors, game HUDs, or natural scenery.
+3. **Contextual Synthesis (The Brain):** **Llama 3.2** aggregates these visual cues to write a coherent summary, distinguishing between a *"React Tutorial"* and a *"Minecraft Gameplay"* video.
+4. **Zero-Hallucination Protocol:** We engineered neutral prompting strategies to prevent the AI from "guessing," ensuring accurate descriptions for both technical and non-technical content.
 
-1. Uploading raw video files to private S3-compatible storage.
-2. Queuing a background job using RabbitMQ.
-3. Transcoding videos asynchronously (720p / H.264) using FFmpeg.
-4. Delivering the optimized video through a secure, high-performance player.
+---
 
-This approach eliminates long upload waits and enables horizontal scaling.
+## ✨ Key Features & Improvements
 
-## ✨ Key Features
+### 🧠 Advanced AI Features
+- **Multi-Model Local Pipeline:** Orchestrates **Moondream** (Vision) and **Llama 3.2** (Text) locally via **Ollama**.
+- **Smart Regenerate:** Users can force-retry AI analysis if the initial result is unsatisfactory or an error occurs.
+- **Hallucination Guard:** Custom prompt engineering prevents common AI errors (like seeing "robots" in nature videos).
+- **Redis Caching:** AI summaries are cached for 24 hours to reduce load, with a "Force Refresh" override.
 
-- **Public Video Gallery:** A searchable, open-access feed where users can watch shared videos without logging in. Features category filtering (Gaming, Tech, Music) and full-text search.
-- **Admin Dashboard:** A dedicated control center for administrators to:
-  - View all registered users and their details.
-  - Ban users or promote them to Admins.
-  - Monitor and delete any video on the platform.
-- **Real-Time Updates (WebSockets):** The dashboard updates instantly when a video finishes processing—no page refreshes required. The backend pushes events directly to the client.
-- **Smart Storage Quotas:**
-  - Regular users get a **500MB** free tier limit with visual usage tracking.
-  - Admins have **unlimited** storage and can manage all user content.
-- **Dynamic Quality Selection:** Users can choose their target resolution (1080p, 720p, 480p) before uploading. The worker dynamically adjusts the FFmpeg transcoding parameters.
+### 🎨 UX & Frontend
+- **Sliding Insight Drawer:** A non-intrusive sidebar displays AI summaries without disrupting the video grid layout.
+- **Neo-Brutalism Design:** High-contrast, bold UI built with **Next.js 16** and **Tailwind CSS**.
+- **Smart State Management:** Real-time UI updates handle "Thinking," "View," and "Retry" states seamlessly via WebSockets.
+- **Public Video Gallery:** A searchable, open-access feed with category filtering (Gaming, Tech, Music) and full-text search via **Elasticsearch**.
+
+### 🛠️ Backend & Infrastructure
+- **Cascading Cleanups:** Hard-delete logic ensures that when a video is removed, all associated AI summaries, thumbnails, and files are instantly wiped from the database and storage.
+- **Dynamic Transcoding:** Workers automatically adjust FFmpeg parameters based on user-selected target resolution (1080p, 720p, 480p).
+- **Smart Storage Quotas:** 500MB free tier for regular users with visual tracking; unlimited for Admins.
+
+---
 
 ## 🛠 Technology Stack
 
 ### Frontend
+- **Next.js 16** — React framework (App Router) for dashboard & auth.
+- **TypeScript** — Strict type safety across the application.
+- **Tailwind CSS** — High-contrast design system.
+- **Framer Motion** — Smooth animations for sidebars and notifications.
 
-- **Next.js 16** — React framework for dashboard, authentication, and routing
-- **TypeScript** — Type-safe API communication
-- **Tailwind CSS** — High-contrast _Neo-brutalism_ design (Black / White / Bold)
+### Backend (API & Intelligence)
+- **FastAPI** — High-performance Python API.
+- **Ollama** — Local AI Model Runner (Llama 3.2 + Moondream).
+- **Redis** — High-speed caching for AI results and session data.
+- **SQLAlchemy** — ORM for PostgreSQL.
+- **FFmpeg** — Video transcoding engine.
 
-### Backend (API & Workers)
-
-- **FastAPI** — High-performance Python API
-- **SQLAlchemy** — ORM for PostgreSQL
-- **Pydantic** — Data validation & schemas
-- **FFmpeg** — Video transcoding engine
-- **Elasticsearch** — Full-text search engine for the public video gallery
-
-### DevOps & Infrastructure
-
-- **Docker & Docker Compose** — Full stack orchestration (8 containers)
-- **RabbitMQ** — Message broker for background jobs
-- **MinIO** — High-performance, S3-compatible object storage
-- **PostgreSQL** — Relational database for users & video metadata
+### Infrastructure (DevOps)
+- **Docker Compose** — Full stack orchestration (**9 containers**).
+- **RabbitMQ** — Message broker for background jobs.
+- **MinIO** — High-performance, S3-compatible object storage.
+- **PostgreSQL** — Primary relational database.
+- **Elasticsearch** — Full-text search engine.
 
 ---
 
-## 🧠 System Architecture & Logic
-
-### Authentication
-
-- JWT-based authentication
-- Secure password hashing with **Bcrypt**
-- **Public Access:** The `/public-videos` route is accessible to anonymous users (Read-Only).
-
-### Role-Based Access Control (RBAC)
-
-- **Users**
-  - Upload private or public videos.
-  - View their own library.
-  - Delete their own content.
-- **Admins**
-  - Access the `/admin` dashboard.
-  - View emails and IDs of all users.
-  - Delete any video or user in the system.
-
-### 🔄 Event-Driven Worker Lifecycle
+## 🧠 System Architecture: "The Storyteller Pipeline"
 
 1. **Ingest:** API receives upload -> Saves raw file to MinIO -> Pushes task to RabbitMQ.
 2. **Process:** Worker consumes task -> Downloads video -> Transcodes via FFmpeg.
-3. **Index:** Public videos are automatically indexed in **Elasticsearch** for instant searching.
-4. **Notify:**
-   - Worker sends a webhook to the API (`/internal/notify`).
-   - API pushes a **WebSocket event** to the specific connected user.
-   - Frontend creates a "Toast" notification or updates the video card status instantly.
+3. **Analyze:**
+   - **Frame Extraction:** Snapshots taken at 20%, 50%, and 80%.
+   - **Vision Pass:** Moondream identifies visual elements (e.g., "Code editor," "Forest").
+   - **Reasoning Pass:** Llama 3.2 synthesizes cues into a summary (e.g., "User is debugging Python code").
+4. **Index & Notify:** Public videos indexed in Elasticsearch. WebSockets notify the frontend.
 
 ---
 
 ## 🚀 Getting Started
 
 ### Requirements
-
-- Docker Desktop (Windows / macOS / Linux)
-- Git
+- **Docker Desktop** (Windows / macOS / Linux) - *Must support Linux containers*
+- **Git**
+- **8GB+ RAM** (Recommended for running AI models locally)
 
 ### Installation
 
-Clone the repository:
-git clone https://github.com/your-username/storagex.git
-cd storagex
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/your-username/storagex.git](https://github.com/your-username/storagex.git)
+   cd storagex
 
 ## 🚀 Running the Full Stack
 
@@ -124,6 +112,10 @@ Once the stack is running, you can access the following services locally:
   - Username: minioadmin
   - Password: minioadmin
 
+- **RabbitMQ Management:**
+  - http://localhost:15672
+  -	guest / guest
+
 ## 🔐 Default Admin Account
 
 On first launch, StorageX automatically seeds a Super Admin account:
@@ -141,7 +133,9 @@ Always change or disable default credentials in production environments.
     .
     ├── backend/
     │   ├── routers/        # API Endpoints (Users, Videos)
+    |   ├── ai_utils.py     # AI Pipeline (Vision + Logic + Retry)
     │   ├── models.py       # SQLAlchemy Database Models
+    │   ├── cache.py        # Redis Caching Layer
     │   ├── schemas.py      # Pydantic Data Models
     │   ├── worker.py       # FFmpeg Background Worker
     │   ├── main.py         # FastAPI Entry Point & Startup Seeding
