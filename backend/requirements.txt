@@ -15,3 +15,4 @@ redis
 numpy
 minio
 opencv-python-headless
+docker

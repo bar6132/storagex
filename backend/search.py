@@ -36,6 +36,18 @@ def index_video(video_id: str, title: str, description: str, category: str):
     except Exception as e:
         print(f"[!] ES Indexing failed: {e}")
 
+def update_video(video_id: str, title: str, description: str, category: str):
+    """Update an existing video document in the search index."""
+    try:
+        es.update(index=INDEX_NAME, id=video_id, doc={
+            "title": title,
+            "description": description,
+            "category": category,
+        })
+        print(f"[search] Updated video {video_id}")
+    except Exception as e:
+        print(f"[!] ES update failed: {e}")
+
 def search_videos(query: str = None, category: str = None):
     """Search for videos with fuzzy matching"""
     must_clauses = []

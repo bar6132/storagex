@@ -5,28 +5,29 @@
 pid=$!
 
 # Wait for Ollama to actually wake up.
+# Uses 'ollama list' instead of curl — curl is not in the ollama/ollama image.
 echo "🔴 Waiting for Ollama API..."
-while ! curl -s http://localhost:11434/api/tags > /dev/null; do
+while ! /bin/ollama list > /dev/null 2>&1; do
     sleep 1
 done
 echo "🟢 Ollama is ready!"
 
 # Check & Pull 'moondream' (The Eyes)
-if ! curl -s http://localhost:11434/api/tags | grep -q "moondream"; then
-    echo "⬇️ Pulling moondream model..."
-    ollama pull moondream
-    echo "✅ moondream installed!"
-else
+if /bin/ollama list | grep -q "moondream"; then
     echo "✅ moondream already exists."
+else
+    echo "⬇️ Pulling moondream model..."
+    /bin/ollama pull moondream
+    echo "✅ moondream installed!"
 fi
 
 # Check & Pull 'llama3.2:1b' (The Brain)
-if ! curl -s http://localhost:11434/api/tags | grep -q "llama3.2:1b"; then
-    echo "⬇️ Pulling llama3.2:1b model..."
-    ollama pull llama3.2:1b
-    echo "✅ llama3.2:1b installed!"
-else
+if /bin/ollama list | grep -q "llama3.2"; then
     echo "✅ llama3.2:1b already exists."
+else
+    echo "⬇️ Pulling llama3.2:1b model..."
+    /bin/ollama pull llama3.2:1b
+    echo "✅ llama3.2:1b installed!"
 fi
 
 # Wait for the background process to finish (keeps container alive)

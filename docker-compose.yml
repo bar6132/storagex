@@ -6,13 +6,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=transcodex
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d transcodex"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -20,24 +20,24 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - "5672:5672" 
-      - "15672:15672" 
+      - "5672:5672"
+      - "15672:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
     volumes:
       - ./rabbitmq_data:/var/lib/rabbitmq
+
 
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000" 
-      - "9001:9001" 
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-      - MINIO_API_CORS_ALLOW_ORIGIN="*"
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     volumes:
       - ./minio_data:/data
 
@@ -61,16 +61,37 @@ services:
 
   api:
     build: ./backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    # Port 8002 is used both inside and outside the container to keep
+    # internal Docker networking (api:8002) consistent with the host mapping.
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
     volumes:
       - ./backend:/app
     ports:
-      - "8000:8000"
+      - "8002:8002"
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/transcodex
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_PASS=${RABBITMQ_DEFAULT_PASS}
       - S3_ENDPOINT=http://minio:9000
-      - ELASTICSEARCH_URL=http://elasticsearch:9200 
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL}
+      - S3_ACCESS_KEY=${MINIO_ROOT_USER}
+      - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - OLLAMA_URL=http://ollama:11434/api/generate
+      - SECRET_KEY=${SECRET_KEY}
+      - INTERNAL_NOTIFY_SECRET=${INTERNAL_NOTIFY_SECRET}
+      - COOKIE_SECURE=${COOKIE_SECURE}
+      - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
+      - SEED_USER_EMAIL=${SEED_USER_EMAIL}
+      - SEED_USER_PASSWORD=${SEED_USER_PASSWORD}
+      - SEED_PERSONAL_ADMIN_EMAIL=${SEED_PERSONAL_ADMIN_EMAIL}
+      - SEED_PERSONAL_ADMIN_PASSWORD=${SEED_PERSONAL_ADMIN_PASSWORD}
+      # CORS_ORIGINS: comma-separated list of allowed frontend origins.
+      # Add your Tailscale frontend URL here when connecting remotely.
+      # e.g.  CORS_ORIGINS=http://localhost:3002,http://100.x.x.x:3002
+      - CORS_ORIGINS=${CORS_ORIGINS}
     depends_on:
       rabbitmq:
         condition: service_started
@@ -88,9 +109,16 @@ services:
       - ./backend:/app
     environment:
       - PYTHONUNBUFFERED=1
-      - DATABASE_URL=postgresql://user:password@db:5432/transcodex
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_PASS=${RABBITMQ_DEFAULT_PASS}
       - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=${MINIO_ROOT_USER}
+      - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - INTERNAL_NOTIFY_SECRET=${INTERNAL_NOTIFY_SECRET}
+      # Internal Docker-network URL for the API — workers call this to push WebSocket notifications.
+      - INTERNAL_API_URL=http://api:8002/internal/notify
     depends_on:
       - db
       - rabbitmq
@@ -99,12 +127,17 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "3002:3002"
     volumes:
       - ./frontend:/app
-      - /app/node_modules 
+      - /app/node_modules
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # PORT tells Next.js dev server which port to bind.
+      - PORT=3002
+      # NEXT_PUBLIC_API_URL is baked into client-side JS at server startup.
+      # For Tailscale remote access, set this to http://<tailscale-ip>:8002
+      # then restart the frontend container.
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
       - api
 
@@ -114,12 +147,12 @@ services:
       - minio
     entrypoint: >
       /bin/sh -c "
-      until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin) do echo 'Waiting for MinIO...' && sleep 1; done;
+      until (/usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}) do echo 'Waiting for MinIO...' && sleep 1; done;
       /usr/bin/mc mb myminio/raw-videos || true;
       /usr/bin/mc mb myminio/processed-videos || true;
-      /usr/bin/mc anonymous set public myminio/processed-videos || true;
       exit 0;
       "
+
   redis:
     image: redis:alpine
     container_name: storagex_redis
@@ -128,18 +161,43 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+
   ollama:
     image: ollama/ollama:latest
     container_name: storagex_ollama
     ports:
-      - "11434:11434"
+      # Ollama always listens on 11434 inside the container.
+      # Host port 11435 is exposed for convenience (ollama CLI from the host).
+      # Other containers reach Ollama via http://ollama:11434 (internal DNS).
+      - "11435:11434"
     volumes:
       - ollama_data:/root/.ollama
-      - ./ollama_entrypoint.sh:/entrypoint.sh 
-    entrypoint: ["/usr/bin/bash", "/entrypoint.sh"] 
+      - ./ollama_entrypoint.sh:/entrypoint.sh
+    entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
+    restart: always
+
+  scaler:
+    build: ./backend
+    command: python scaler.py
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RABBITMQ_API=http://rabbitmq:15672/api/queues/%2F/video_tasks
+      - RABBITMQ_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_PASS=${RABBITMQ_DEFAULT_PASS}
+      - SCALER_INTERVAL=15
+      - MIN_WORKERS=1
+      - MAX_WORKERS=5
+      - JOBS_PER_WORKER=2
+    depends_on:
+      - rabbitmq
+      - worker
     restart: always
 
 volumes:
-  es_data:
-  redis_data:
-  ollama_data:
+    es_data:
+    redis_data:
+    ollama_data:
+    rabbitmq_data:

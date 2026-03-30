@@ -3,29 +3,33 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiService } from "@/lib/services";
 import Navbar from "@/app/components/Navbar";
+import type { Video, User } from "@/lib/types";
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("videos"); 
-  const [videos, setVideos] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("videos");
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const token = localStorage.getItem("storagex_token");
-        if (!token) return router.push("/login");
+        // Auth check via /users/me — httpOnly cookie is sent automatically
+        const meRes = await ApiService.getMe();
+        if (!meRes.ok) return router.push("/login");
+        const me: User = await meRes.json();
+        if (!me.is_admin) return router.push("/");
 
         const vidRes = await ApiService.getAllVideosAdmin();
         if (vidRes.ok) setVideos(await vidRes.json());
-        else router.push("/");
 
         const userRes = await ApiService.adminGetUsers();
         if (userRes.ok) setUsers(await userRes.json());
 
       } catch (err) {
         console.error("Admin load error:", err);
+        router.push("/login");
       } finally {
         setLoading(false);
       }
@@ -63,13 +67,13 @@ export default function AdminDashboard() {
         </h1>
 
         <div className="flex gap-4 mb-8">
-          <button 
+          <button type="button"
             onClick={() => setActiveTab("videos")}
             className={`px-6 py-3 font-bold text-xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all ${activeTab === 'videos' ? 'bg-yellow-300 translate-x-[2px] translate-y-[2px] shadow-none' : 'bg-white hover:-translate-y-1'}`}
           >
             Manage Videos ({videos.length})
           </button>
-          <button 
+          <button type="button"
             onClick={() => setActiveTab("users")}
             className={`px-6 py-3 font-bold text-xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all ${activeTab === 'users' ? 'bg-blue-300 translate-x-[2px] translate-y-[2px] shadow-none' : 'bg-white hover:-translate-y-1'}`}
           >
@@ -105,7 +109,7 @@ export default function AdminDashboard() {
                       </td>
                       <td className="p-4 text-sm">{(v.file_size / 1024 / 1024).toFixed(2)} MB</td>
                       <td className="p-4 text-right">
-                        <button 
+                        <button type="button"
                           onClick={() => handleDeleteVideo(v.id)}
                           className="bg-red-500 text-white px-4 py-1 font-bold border-2 border-black hover:bg-red-600 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none"
                         >
@@ -144,14 +148,14 @@ export default function AdminDashboard() {
                       </td>
                       <td className="p-4 text-right flex justify-end gap-2">
                         {!u.is_admin && (
-                          <button 
+                          <button type="button"
                             onClick={() => handlePromoteUser(u.id)}
                             className="bg-blue-500 text-white px-3 py-1 font-bold border-2 border-black hover:bg-blue-600 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none"
                           >
                             PROMOTE
                           </button>
                         )}
-                        <button 
+                        <button type="button"
                           onClick={() => handleDeleteUser(u.id)}
                           className="bg-black text-white px-3 py-1 font-bold border-2 border-gray-800 hover:bg-gray-800 shadow-[2px_2px_0px_0px_rgba(100,100,100,1)] active:translate-y-[2px] active:shadow-none"
                         >

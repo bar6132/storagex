@@ -2,19 +2,30 @@
 import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { ApiService } from "@/lib/services";
 
 export default function Navbar({ videos = [], isAdmin = false }: { videos?: any[], isAdmin?: boolean }) {
   const [isMounted, setIsMounted] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
+
+  // [FIX: SEC-001] Replaced localStorage token check with server-side /users/me call.
+  // httpOnly cookies cannot be read by JavaScript, so the only way to know if the user
+  // is logged in is to ask the server.
+  // OLD: const [token, setToken] = useState<string | null>(null);
+  // OLD: setToken(localStorage.getItem("storagex_token"));
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
-    setToken(localStorage.getItem("storagex_token"));
+    // [FIX: SEC-001] Check auth by calling /users/me — cookie is sent automatically.
+    // If the cookie is missing or expired, the server returns 401 → user is logged out.
+    ApiService.getMe()
+      .then((res) => setIsLoggedIn(res.ok))
+      .catch(() => setIsLoggedIn(false));
   }, []);
 
-  const isLoggedIn = !!token;
-  const storageLimit = 524288000; 
+  const storageLimit = 524288000;
 
   const totalUsed = useMemo(() => {
     return videos.reduce((acc, v) => acc + (v.file_size || 0), 0);
@@ -24,9 +35,13 @@ export default function Navbar({ videos = [], isAdmin = false }: { videos?: any[
   const limitMB = (storageLimit / (1024 * 1024)).toFixed(0);
   const percent = Math.min((totalUsed / storageLimit) * 100, 100);
 
-  const handleLogout = () => {
-    localStorage.removeItem("storagex_token");
-    setToken(null);
+  const handleLogout = async () => {
+    // [FIX: SEC-001] Logout now calls the backend to clear httpOnly cookies.
+    // JavaScript cannot delete httpOnly cookies — only the server can.
+    // OLD: localStorage.removeItem("storagex_token");
+    // OLD: setToken(null);
+    await ApiService.logout();
+    setIsLoggedIn(false);
     router.push("/");
   };
 
@@ -55,7 +70,7 @@ export default function Navbar({ videos = [], isAdmin = false }: { videos?: any[
               <span>{usageMB}MB / {limitMB}MB</span>
             </div>
             <div className="h-3 w-full border-2 border-black bg-white overflow-hidden shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-              <div 
+              <div
                 className={`h-full border-r-2 border-black transition-all duration-700 ${
                   percent > 90 ? 'bg-red-500' : 'bg-blue-500'
                 }`}

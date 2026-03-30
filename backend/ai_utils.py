@@ -1,9 +1,8 @@
 import requests
-import json
 import os
 import cv2
 import base64
-import time
+import asyncio
 from minio import Minio
 from sqlalchemy.orm import Session
 from cache import get_cached_summary, set_cached_summary
@@ -14,23 +13,23 @@ VISION_MODEL = "moondream"   # The Eyes
 TEXT_MODEL = "llama3.2:1b"   # The Brain
 
 MINIO_CLIENT = Minio(
-    "minio:9000",
-    access_key="minioadmin",
-    secret_key="minioadmin",
-    secure=False
+    os.getenv("S3_ENDPOINT", "http://minio:9000").replace("http://", "").replace("https://", ""),
+    access_key=os.getenv("S3_ACCESS_KEY", "minioadmin"),
+    secret_key=os.getenv("S3_SECRET_KEY", "minioadmin"),
+    secure=os.getenv("S3_ENDPOINT", "http://minio:9000").startswith("https")
 )
 
 def get_frame_at_percentage(video_path, percentage):
     """Extracts a single frame at a specific percentage (0.2, 0.5, 0.8)"""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened(): return None
-    
+
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(total_frames * percentage))
-    
+
     ret, frame = cap.read()
     cap.release()
-    
+
     if not ret: return None
     _, buffer = cv2.imencode('.jpg', frame)
     return base64.b64encode(buffer).decode('utf-8')
@@ -38,16 +37,17 @@ def get_frame_at_percentage(video_path, percentage):
 def analyze_image_with_moondream(image_b64):
     """Asks Moondream to describe technical details in the image"""
     prompt = "Describe the software interface in this image. List any visible buttons, text inputs, headers, or specific words like 'Chat', 'Model', 'AI', or code."
-    
+
     try:
         response = requests.post(OLLAMA_URL, json={
             "model": VISION_MODEL,
             "prompt": prompt,
             "images": [image_b64],
             "stream": False
-        }, timeout=30)
+        }, timeout=120)
         return response.json().get("response", "")
-    except:
+    except Exception as e:
+        print(f"   Moondream request failed: {e}")
         return ""
 
 def synthesize_final_summary(descriptions):
@@ -69,27 +69,28 @@ def synthesize_final_summary(descriptions):
             "model": TEXT_MODEL,
             "prompt": prompt,
             "stream": False
-        }, timeout=30)
+        }, timeout=120)
         return response.json().get("response", "Analysis failed.")
-    except:
+    except Exception as e:
+        print(f"   Llama synthesis request failed: {e}")
         return "Could not synthesize summary."
 
 def generate_summary_stream(video_id: str, video_title: str, db: Session, ignore_cache: bool = False):
     if not ignore_cache:
         cached = get_cached_summary(video_id)
         if cached: return cached
-        
+
         db_summary = db.query(models.VideoSummary).filter(models.VideoSummary.video_id == video_id).first()
         if db_summary:
             set_cached_summary(video_id, db_summary.summary_text)
             return db_summary.summary_text
 
     if ignore_cache:
-        print(f"♻️ Force regenerating for {video_id}...")
+        print(f"Force regenerating for {video_id}...")
         db.query(models.VideoSummary).filter(models.VideoSummary.video_id == video_id).delete()
         db.commit()
 
-    print(f"👁️ Analyzing video story for: {video_id}")
+    print(f"Analyzing video for: {video_id}")
     video = db.query(models.VideoJob).filter(models.VideoJob.id == video_id).first()
     if not video or not video.s3_key: return "Video not ready."
 
@@ -99,13 +100,13 @@ def generate_summary_stream(video_id: str, video_title: str, db: Session, ignore
 
         timestamps = [0.2, 0.5, 0.8]
         descriptions = []
-        
+
         for t in timestamps:
             img = get_frame_at_percentage(temp_filename, t)
             if img:
                 desc = analyze_image_with_moondream(img)
                 descriptions.append(desc)
-                print(f"   --> Frame at {int(t*100)}%: {desc[:50]}...")
+                print(f"   Frame at {int(t*100)}%: {desc[:50]}...")
 
         if not descriptions:
             final_summary = "Could not analyze video visual content."
@@ -113,14 +114,47 @@ def generate_summary_stream(video_id: str, video_title: str, db: Session, ignore
             final_summary = synthesize_final_summary(descriptions)
 
         os.remove(temp_filename)
-        
+
         new_summary = models.VideoSummary(video_id=video_id, summary_text=final_summary)
         db.add(new_summary)
         db.commit()
         set_cached_summary(video_id, final_summary)
-        
+
         return final_summary
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during analysis: {e}")
+        if os.path.exists(temp_filename):
+            os.remove(temp_filename)
         return "Analysis failed."
+
+
+async def generate_summary_background(video_id: str, user_id: int):
+    """
+    Background task: generates AI summary in a thread pool (non-blocking),
+    then pushes the result to the user via WebSocket.
+    """
+    from ws_manager import manager
+
+    def _run():
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            video = db.query(models.VideoJob).filter(models.VideoJob.id == video_id).first()
+            if not video:
+                return "Video not found.", None
+            return generate_summary_stream(video_id, video.title or video.filename, db, ignore_cache=False), video.title or video.filename
+        except Exception as e:
+            print(f"Background summary error: {e}")
+            return "Analysis failed.", None
+        finally:
+            db.close()
+
+    summary, video_title = await asyncio.to_thread(_run)
+
+    await manager.send_personal_message({
+        "type": "summary_ready",
+        "video_id": video_id,
+        "summary": summary,
+        "video_title": video_title or video_id
+    }, user_id)

@@ -1,0 +1,5 @@
+# Force LF line endings for shell scripts — prevents CRLF breaking bash in Docker/Linux containers
+*.sh text eol=lf
+
+# Force LF for all other text files by default
+* text=auto

@@ -15,28 +15,29 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     storage_limit = Column(BigInteger, default=524288000)
     videos = relationship("VideoJob", back_populates="owner")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
 
 class VideoJob(Base):
     __tablename__ = "video_jobs"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, nullable=True)
-    description = Column(Text, nullable=True)        
-    category = Column(String, default="Other")       
-    is_shared = Column(Boolean, default=False)       
+    description = Column(Text, nullable=True)
+    category = Column(String, default="Other")
+    is_shared = Column(Boolean, default=False)
     filename = Column(String, nullable=False)
-    file_size = Column(BigInteger, default=0) 
-    status = Column(String, default="pending") 
+    file_size = Column(BigInteger, default=0)
+    status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
     s3_key = Column(String, nullable=True)
-    is_deleted = Column(Boolean, default=False) 
+    is_deleted = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="videos")
     summary_data = relationship(
-        "VideoSummary", 
-        back_populates="video", 
-        uselist=False, 
-        cascade="all, delete-orphan" 
+        "VideoSummary",
+        back_populates="video",
+        uselist=False,
+        cascade="all, delete-orphan"
     )
     @property
     def summary(self):
@@ -52,3 +53,14 @@ class VideoSummary(Base):
     summary_text = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     video = relationship("VideoJob", back_populates="summary_data")
+
+
+class RefreshToken(Base):
+    """Stores hashed refresh tokens to allow server-side revocation."""
+    __tablename__ = "refresh_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    token_hash = Column(String, unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    user = relationship("User", back_populates="refresh_tokens")

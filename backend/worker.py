@@ -2,34 +2,41 @@ import pika
 import json
 import os
 import subprocess
-import requests 
+import requests
 from database import SessionLocal
-from models import VideoJob 
+from models import VideoJob
 from tasks import S3_CLIENT
 import datetime
 import time
 
-API_URL = "http://api:8000/internal/notify"
+API_URL = os.getenv("INTERNAL_API_URL", "http://api:8002/internal/notify")
+INTERNAL_NOTIFY_SECRET = os.getenv("INTERNAL_NOTIFY_SECRET", "")
 
 def send_notification(user_id, video_id, status, message):
     try:
+        headers = {}
+        if INTERNAL_NOTIFY_SECRET:
+            headers["X-Internal-Token"] = INTERNAL_NOTIFY_SECRET
         payload = {
             "user_id": user_id,
             "video_id": video_id,
             "status": status,
             "message": message
         }
-        requests.post(API_URL, json=payload, timeout=5)
+        requests.post(API_URL, json=payload, headers=headers, timeout=5)
     except Exception as e:
         print(f"[!] Notification failed: {e}")
 
 def process_video(job_id, input_filename, resolution="720p"):
     db = SessionLocal()
     job = db.query(VideoJob).filter(VideoJob.id == job_id).first()
-    
+
     if not job:
         print(f"Job {job_id} not found.")
         return
+
+    local_input = f"/tmp/{input_filename.split('/')[-1]}"
+    local_output = f"/tmp/processed_{job_id}.mp4"
 
     try:
         send_notification(job.owner_id, job_id, "processing", "Processing started...")
@@ -38,8 +45,6 @@ def process_video(job_id, input_filename, resolution="720p"):
         db.commit()
         print(f"[*] Processing job {job_id} ({resolution})...")
 
-        local_input = f"/tmp/{input_filename.split('/')[-1]}"
-        local_output = f"/tmp/processed_{job_id}.mp4"
         s3_output_key = f"processed/user_{job.owner_id}/{job_id}.mp4"
 
         S3_CLIENT.download_file("raw-videos", input_filename, local_input)
@@ -54,7 +59,7 @@ def process_video(job_id, input_filename, resolution="720p"):
             "-c:a", "aac", "-b:a", "128k",
             local_output
         ]
-        
+
         subprocess.run(ffmpeg_cmd, check=True)
 
         S3_CLIENT.upload_file(local_output, "processed-videos", s3_output_key)
@@ -68,7 +73,7 @@ def process_video(job_id, input_filename, resolution="720p"):
 
         try:
             S3_CLIENT.delete_object(Bucket="raw-videos", Key=input_filename)
-        except:
+        except Exception:
             pass
 
         print(f"[#] Job {job_id} completed.")
@@ -90,22 +95,27 @@ def callback(ch, method, properties, body):
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
 def main():
+    rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+    rabbitmq_user = os.getenv("RABBITMQ_USER", "guest")
+    rabbitmq_pass = os.getenv("RABBITMQ_PASS", "guest")
+    credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_pass)
+
     connection = None
     while not connection:
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq', heartbeat=600))
-        except:
+            connection = pika.BlockingConnection(
+                pika.ConnectionParameters(host=rabbitmq_host, credentials=credentials, heartbeat=600)
+            )
+        except Exception:
             print("Retrying RabbitMQ...")
             time.sleep(5)
 
     channel = connection.channel()
-    
     QUEUE_NAME = 'video_tasks'
-    
     channel.queue_declare(queue=QUEUE_NAME, durable=True)
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
-    
+
     print(' [*] Worker Ready')
     channel.start_consuming()
 

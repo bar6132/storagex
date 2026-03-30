@@ -1,35 +1,39 @@
 "use client";
-import { useEffect, useState } from "react"; 
-import { ApiService } from "@/lib/services"; 
+import { useEffect, useState } from "react";
+import { ApiService } from "@/lib/services";
 import Navbar from "@/app/components/Navbar";
 import Link from "next/link";
+import type { Video, User } from "@/lib/types";
 
 export default function HomePage() {
-  const [videos, setVideos] = useState<any[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false); 
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("storagex_token");
-    if (token) {
-      const fetchData = async () => {
-        try {
-          const adminRes = await ApiService.getAllVideosAdmin();
-          if (adminRes.ok) {
-            setVideos(await adminRes.json());
-            setIsAdmin(true);
-            return;
-          }
-          const userRes = await ApiService.getMyVideos();
-          if (userRes.ok) {
-            setVideos(await userRes.json());
-            setIsAdmin(false);
-          }
-        } catch (err) {
-          console.error("Homepage fetch error:", err);
+    // Attempt to load user data via cookie-based auth (no localStorage needed).
+    // If the user isn't logged in the requests return 401 and we just show the landing page.
+    const fetchData = async () => {
+      try {
+        const meRes = await ApiService.getMe();
+        if (!meRes.ok) return;
+        const me: User = await meRes.json();
+
+        const adminRes = await ApiService.getAllVideosAdmin();
+        if (adminRes.ok) {
+          setVideos(await adminRes.json());
+          setIsAdmin(me.is_admin);
+          return;
         }
-      };
-      fetchData();
-    }
+        const userRes = await ApiService.getMyVideos();
+        if (userRes.ok) {
+          setVideos(await userRes.json());
+          setIsAdmin(false);
+        }
+      } catch (err) {
+        console.error("Homepage fetch error:", err);
+      }
+    };
+    fetchData();
   }, []);
 
   return (

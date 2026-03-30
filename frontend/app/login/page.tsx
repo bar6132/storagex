@@ -18,8 +18,10 @@ export default function LoginPage() {
     try {
       const res = await ApiService.login(formData);
       if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem("storagex_token", data.access_token);
+        // [FIX: SEC-001] Token is now stored as an httpOnly cookie by the backend —
+        // no localStorage interaction needed here.
+        // OLD: const data = await res.json();
+        // OLD: localStorage.setItem("storagex_token", data.access_token);
         router.push("/dashboard");
       } else {
         alert("Login failed! Check your credentials.");

@@ -23,6 +23,11 @@ def set_cached_summary(video_id: str, summary: str, expire_hours=24):
     if not r: return
     r.setex(f"summary:{video_id}", timedelta(hours=expire_hours), summary)
 
+def delete_cached_summary(video_id: str):
+    """Remove a cached summary (called when force-regenerating)."""
+    if not r: return
+    r.delete(f"summary:{video_id}")
+
 # --- RATE LIMIT ---
 def check_rate_limit(user_ip: str, limit=5, window_seconds=60):
     if not r: return True
