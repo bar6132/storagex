@@ -115,12 +115,6 @@ async def seed_database():
             "is_admin": False,
             "label": "REGULAR USER"
         },
-        {
-            "email": os.getenv("SEED_PERSONAL_ADMIN_EMAIL", "barbar6132@gmail.com"),
-            "password": os.getenv("SEED_PERSONAL_ADMIN_PASSWORD", "admin123"),
-            "is_admin": True,
-            "label": "PERSONAL ADMIN"
-        }
     ]
 
     try:
